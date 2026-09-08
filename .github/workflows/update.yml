@@ -51,7 +51,9 @@ jobs:
       - name: Build data
         run: |
           mkdir -p site
-          python update_prices.py "業種分類マップ_v2.xlsx" --out site ${{ steps.mode.outputs.args }}
+          XLSX=$(ls *.xlsx | head -1)
+          echo "using: $XLSX"
+          python update_prices.py "$XLSX" --out site ${{ steps.mode.outputs.args }}
           cp index.html site/
 
       - uses: actions/upload-pages-artifact@v3
