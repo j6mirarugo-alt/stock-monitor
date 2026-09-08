@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1216">
+<title>業種別 株価パフォーマンス</title>
+<style>
+:root{
+  --bg:#0f1216; --bg2:#161a20; --bg3:#1d2229; --line:#2a313a;
+  --amber:#f3a71a; --amber2:#ffd27a; --txt:#e6e9ee; --mut:#8c96a3; --dim:#5d6772;
+  --up:#1b8f4c; --dn:#c62f2f; --upT:#39c26b; --dnT:#ff6d6d;
+  --colw:64px; --rowh:30px;
+  font-family:-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-size:13px;line-height:1.35;-webkit-text-size-adjust:100%}
+body{padding-bottom:env(safe-area-inset-bottom)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--amber2);outline-offset:1px}
+
+/* ---------- top chrome ---------- */
+.top{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:10px;padding:8px 12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto;min-width:0}
+.brand h1{font-size:15px;font-weight:600;margin:0;color:var(--amber);letter-spacing:.02em;white-space:nowrap}
+.brand .asof{color:var(--mut);font-size:12px;white-space:nowrap}
+.ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--bg2)}
+.seg button{background:none;border:0;padding:6px 10px;color:var(--mut);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--amber);color:#1a1200;font-weight:600}
+.ib{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:var(--txt);white-space:nowrap}
+.ib:hover{border-color:var(--dim)}
+input.q{background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:170px;color:var(--txt)}
+input.q::placeholder{color:var(--dim)}
+.tabs{display:flex;gap:4px;padding:0 8px 8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:5px 11px;color:var(--mut);white-space:nowrap;font-size:12px}
+.tabs button[aria-pressed="true"]{background:var(--bg3);border-color:var(--amber);color:var(--amber2)}
+.tabs button b{font-weight:500;color:var(--dim);margin-left:4px}
+.tabs button[aria-pressed="true"] b{color:var(--amber)}
+.chips{display:flex;gap:4px;padding:0 8px 8px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:4px;padding:3px 8px;color:var(--mut);font-size:12px;white-space:nowrap}
+.chips button[aria-pressed="true"]{border-color:var(--amber2);color:var(--amber2)}
+.chips .lab{color:var(--dim);align-self:center;font-size:11px;margin-right:2px;white-space:nowrap}
+
+/* ---------- notice ---------- */
+.note{margin:10px 12px 0;padding:10px 12px;border:1px solid #6b4d0e;background:#241b08;border-radius:6px;color:var(--amber2);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.note.hide{display:none}
+.note code{background:#0f1216;padding:1px 6px;border-radius:3px;color:#ffe3a3}
+.note .sp{flex:1 1 auto}
+
+/* ---------- table ---------- */
+.wrap{overflow:auto;position:relative;max-height:calc(100vh - var(--topH,120px))}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content;font-variant-numeric:tabular-nums}
+thead th{position:sticky;top:0;z-index:5;background:#2b2a24;color:var(--amber);font-weight:600;font-size:12px;text-align:right;padding:0 8px;height:30px;border-bottom:1px solid #4a3e14;white-space:nowrap;cursor:pointer;user-select:none}
+thead th.l{text-align:left}
+thead th:hover{color:var(--amber2)}
+thead th .arr{color:var(--amber2);font-size:10px;margin-left:2px}
+thead th.num{width:var(--colw);min-width:var(--colw)}
+td{height:var(--rowh);padding:0 8px;border-bottom:1px solid #1a1e24;white-space:nowrap;text-align:right;vertical-align:middle}
+td.l{text-align:left}
+td.tk{color:var(--amber);font-weight:600}
+td.nm{color:#f0b95c;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+td.ct span{display:inline-block;min-width:26px;text-align:center;border-radius:3px;padding:1px 4px;font-size:11px;font-weight:600;color:#111}
+td.cap{color:#fff;font-weight:600}
+td.cap i{font-style:normal;color:var(--dim);font-weight:400;font-size:11px}
+td.ds{color:#e5b55a;max-width:320px;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+td.v{color:#fff;font-weight:600;font-size:12.5px;width:var(--colw);min-width:var(--colw)}
+td.v.z{color:var(--mut);font-weight:400}
+td.v.na{color:var(--dim);font-weight:400}
+td.pe,td.pb{color:#d9dde3}
+tr.row:hover td{filter:brightness(1.12)}
+tr.row td.stick, thead th.stick{position:sticky;left:0;z-index:4;background:var(--bg)}
+thead th.stick{z-index:6;background:#2b2a24}
+tr.grp td{background:#141a22;color:#ffd27a;font-weight:600;height:32px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);cursor:pointer;position:sticky;left:0}
+tr.grp td .tri{display:inline-block;width:14px;color:var(--amber);transition:transform .15s}
+tr.grp.closed td .tri{transform:rotate(-90deg)}
+tr.grp td .cnt{color:var(--mut);font-weight:400;margin-left:6px}
+tr.grp td .sub{color:var(--mut);font-weight:400}
+tr.grp td.v{position:static;background:#141a22;font-weight:500;font-size:11.5px;color:#cfd5dc}
+tr.grp td.v.na{color:var(--dim)}
+tr.grp td.avg{color:var(--dim);font-weight:400;font-size:11px;position:static;background:#141a22}
+tr.sec td{background:#1f1a0d;color:var(--amber);font-weight:700;font-size:13.5px;height:34px;position:sticky;left:0;border-top:2px solid #4a3e14}
+tr.sec td.v{position:static;background:#1f1a0d;font-size:11.5px;font-weight:500;color:#cfd5dc}
+tr.sec td.avg{color:var(--dim);font-weight:400;font-size:11px;position:static;background:#1f1a0d}
+.empty{padding:40px 16px;color:var(--mut);text-align:center}
+.legend{display:flex;gap:14px;align-items:center;padding:8px 12px;color:var(--mut);font-size:11px;border-top:1px solid var(--line);flex-wrap:wrap}
+.legend .sw{display:inline-flex;gap:1px;vertical-align:middle;margin-right:4px}
+.legend .sw i{width:12px;height:12px;display:inline-block}
+
+/* ---------- detail sheet (mobile tap) ---------- */
+.sheet{position:fixed;inset:0;z-index:50;display:none}
+.sheet.on{display:block}
+.sheet .bd{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.sheet .pn{position:absolute;left:0;right:0;bottom:0;background:var(--bg2);border-top:1px solid var(--line);border-radius:14px 14px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));max-height:80vh;overflow:auto}
+.pn h2{margin:0;font-size:16px;color:var(--amber)}
+.pn h2 small{color:var(--mut);font-weight:400;font-size:12px;margin-left:8px}
+.pn .nm{color:#f0b95c;margin:2px 0 6px}
+.pn .ds{color:#d9dde3;margin:0 0 10px;font-size:13px}
+.pn .meta{color:var(--mut);font-size:12px;margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap}
+.pn .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pn .cell{border-radius:6px;padding:8px 6px;text-align:center}
+.pn .cell b{display:block;font-size:16px;color:#fff}
+.pn .cell span{font-size:11px;color:rgba(255,255,255,.75)}
+.pn .cell.na{background:var(--bg3)}
+.pn .cell.na b{color:var(--dim)}
+.pn .x{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--mut);font-size:20px;line-height:1;padding:4px}
+
+@media (max-width:720px){
+  :root{--colw:47px;--rowh:38px}
+  body{font-size:12px}
+  .bar{padding:6px 8px;gap:6px}
+  .brand h1{font-size:14px}
+  .brand{flex-wrap:wrap;gap:2px 8px}
+  .brand .asof{font-size:11px}
+  .seg button{padding:5px 8px;font-size:12px}
+  input.q{min-width:0;flex:1 1 90px;padding:5px 8px}
+  #toggleAll{padding:5px 8px}
+  .tabs{padding:0 6px 6px}
+  .chips{padding:0 6px 6px}
+  .hide-m{display:none !important}
+  tr.grp td.v,tr.sec td.v{padding:0 3px}
+  td.tk{font-size:12.5px;line-height:1.2}
+  td.tk .tkw{width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.tk small{display:block;font-weight:400;color:#f0b95c;font-size:10.5px;overflow:hidden;text-overflow:ellipsis}
+  td{padding:0 5px}
+  td.v{font-size:11.5px;padding:0 3px}
+  thead th{padding:0 5px;font-size:11px}
+  td.pe{font-size:11.5px}
+  .legend{gap:8px}
+}
+@media (min-width:721px){ td.tk small{display:none} }
+tr.grp td.m,tr.sec td.m{position:static;height:auto;padding:5px 8px;white-space:normal;line-height:1.3}
+.ia{display:block;font-weight:400;font-size:10.5px;color:var(--mut);margin-top:2px;white-space:nowrap;overflow:hidden}
+.ia span{margin-right:7px}
+.ia em{font-style:normal;color:var(--dim);margin-right:2px}
+.ia .up{color:var(--upT)} .ia .dn{color:var(--dnT)}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<div class="top" id="top">
+  <div class="bar">
+    <div class="brand">
+      <h1>業種別 株価パフォーマンス</h1>
+      <span class="asof" id="asof"></span>
+    </div>
+    <div class="ctl">
+      <div class="seg" id="mode" role="group" aria-label="表示モード">
+        <button data-m="abs" aria-pressed="true" title="現地通貨建ての絶対リターン">絶対</button>
+        <button data-m="ctry" aria-pressed="false" title="各国の代表指数に対する超過リターン(現地通貨)">対 各国指数</button>
+        <button data-m="acwi" aria-pressed="false" title="ACWI(全世界株)に対する超過リターン(USD建て)">対 ACWI</button>
+      </div>
+      <input class="q" id="q" type="search" placeholder="ティッカー・銘柄名・コメントを検索" autocomplete="off">
+      <button class="ib" id="toggleAll" title="全グループを開閉">全て閉じる</button>
+      <button class="ib" id="reload" title="最新の価格データを読み込む">更新</button>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="chips" id="sub"></div>
+  <div class="chips" id="ctry"></div>
+</div>
+
+<div class="note hide" id="note"></div>
+
+<div class="wrap" id="wrap">
+  <table id="tbl">
+    <thead><tr id="hdr"></tr></thead>
+    <tbody id="body"></tbody>
+  </table>
+  <div class="empty" id="empty" hidden>該当する銘柄がありません。</div>
+</div>
+
+<div class="legend">
+  <span><span class="sw"><i style="background:#8b1d1d"></i><i style="background:#c62f2f"></i><i style="background:#1d2229"></i><i style="background:#1b8f4c"></i><i style="background:#0f7a3a"></i></span>色の濃さ = 動きの大きさ(期間ごとにスケール)</span>
+  <span id="legendMode"></span>
+  <span>時価総額 B$:指数ウェイト逆算の概算(Excel)。取得時に Yahoo の値があればそちらを優先</span>
+  <span>行をクリック/タップで詳細</span>
+  <span><label class="ib" style="padding:3px 8px;font-size:11px">prices.js / JSON を読み込む <input type="file" id="file" accept=".js,.json" hidden></label></span>
+</div>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="bd" id="sheetBd"></div>
+  <div class="pn" id="sheetPn" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="universe.js"></script>
+<script>
+(function(){
+'use strict';
+// prices.js はキャッシュを避けて読み込む(GitHub Pages で定期更新されるため)
+function loadPrices(cb){
+  const el=document.createElement('script');
+  el.src='prices.js?v='+Date.now();
+  el.onload=()=>cb(window.PRICES||null);
+  el.onerror=()=>cb(null);
+  document.head.appendChild(el);
+}
+const PERIODS = ['1D','5D','1M','3M','6M','1Y'];
+// 期間ごとの色の飽和点(この絶対値で最も濃くなる)
+const SAT = {'1D':4, '5D':7, '1M':12, '3M':20, '6M':30, '1Y':50};
+const CC = {US:'#8fd3ff',JP:'#ffe08a',CN:'#ff8fc8',TW:'#ff9d6b',KR:'#b7a3ff',IN:'#ffb36b',GB:'#9bd7b6',DE:'#c8d4e3',FR:'#c8d4e3',CH:'#e0c0c0',SE:'#c8d4e3',IT:'#c8d4e3',NL:'#c8d4e3',ES:'#c8d4e3',NO:'#c8d4e3',DK:'#c8d4e3',FI:'#c8d4e3',PL:'#c8d4e3',BE:'#c8d4e3',AT:'#c8d4e3',IE:'#c8d4e3',PT:'#c8d4e3',MY:'#9de3e3',TH:'#9de3e3',ID:'#9de3e3',PH:'#9de3e3'};
+
+const U = (window.UNIVERSE && window.UNIVERSE.rows) || [];
+let P = null;
+
+const state = {
+  mode:'abs', sector:null, sub:null, ctry:null, q:'',
+  sort:{key:'cap', dir:-1}, closed:new Set(), allClosed:false
+};
+
+const $ = id => document.getElementById(id);
+const mq = window.matchMedia('(max-width:720px)');
+const fmtPct = v => v==null ? '—' : (v>0?'+':'')+v.toFixed(1)+'%';
+const fmtCap = (r) => {
+  const p = P && P.prices[r.id];
+  const v = (p && p.mcap!=null) ? p.mcap : r.cap;
+  return v==null ? '—' : (v>=100 ? v.toFixed(0) : v.toFixed(1));
+};
+const capVal = r => { const p=P&&P.prices[r.id]; return (p&&p.mcap!=null)?p.mcap:(r.cap==null?-1:r.cap); };
+
+// ---------- リターン計算 ----------
+function benchFor(r){
+  if(!P) return null;
+  if(state.mode==='acwi') return P.bench[P.global_bench] || null;
+  const cb = P.country_bench && P.country_bench[r.c];
+  return (cb && P.bench[cb]) || P.bench[P.index_bench && P.index_bench[r.ix]] || null;
+}
+function ret(r, period){
+  const p = P && P.prices[r.id];
+  if(!p) return null;
+  if(state.mode==='abs') return p.loc[period];
+  const base = state.mode==='acwi' ? (p.usd||p.loc) : p.loc;
+  const b = benchFor(r);
+  if(base[period]==null) return null;
+  if(!b || b[period]==null) return null;
+  return +(base[period]-b[period]).toFixed(2);
+}
+function bg(v, period){
+  if(v==null) return '';
+  const s = Math.min(1, Math.abs(v)/SAT[period]);
+  if(s<0.06) return 'background:#1d2229';
+  const a = 0.25+0.75*Math.sqrt(s);
+  return v>0 ? `background:rgba(27,143,76,${a.toFixed(2)})` : `background:rgba(198,47,47,${a.toFixed(2)})`;
+}
+
+// ---------- フィルタ ----------
+function sectors(){ const m=new Map(); U.forEach(r=>m.set(r.s,(m.get(r.s)||0)+1)); return [...m.entries()]; }
+function visibleRows(){
+  const q = state.q.trim().toLowerCase();
+  return U.filter(r =>
+    (q ? true : (!state.sector || r.s===state.sector)) &&
+    (!state.sub || r.ss===state.sub) &&
+    (!state.ctry || r.c===state.ctry) &&
+    (!q || r.t.toLowerCase().includes(q) || (r.n||'').toLowerCase().includes(q) || (r.d||'').toLowerCase().includes(q) || (r.g||'').toLowerCase().includes(q))
+  );
+}
+function sortRows(rows){
+  const {key,dir} = state.sort;
+  const val = r => key==='cap' ? capVal(r) : key==='pe' ? ((P&&P.prices[r.id]&&P.prices[r.id].pe)??-1) : key==='pb' ? ((P&&P.prices[r.id]&&P.prices[r.id].pb)??-1) : key==='t' ? r.t : ret(r,key);
+  return rows.sort((a,b)=>{
+    const va=val(a), vb=val(b);
+    if(va==null && vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
+    if(typeof va==='string') return dir*va.localeCompare(vb);
+    return dir*(va-vb);
+  });
+}
+
+// ---------- 描画 ----------
+function renderChrome(){
+  const asof = P ? (P.demo ? 'デモデータ(乱数)' : `更新 ${P.generated}`) : '価格データ未読込';
+  $('asof').textContent = asof;
+  $('legendMode').textContent = state.mode==='abs' ? '表示: 現地通貨建て絶対リターン' :
+    state.mode==='ctry' ? '表示: 各国代表指数(S&P500, 日経225, 加権, KOSPI, HSI, FTSE, DAX…)に対する超過リターン(現地通貨)' :
+    '表示: ACWI(全世界株)に対する超過リターン(USD換算)';
+  document.querySelectorAll('#mode button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.m===state.mode));
+
+  const tabs = $('tabs'); tabs.innerHTML='';
+  const all = document.createElement('button'); all.textContent='全セクター'; all.setAttribute('aria-pressed', state.sector==null);
+  all.onclick=()=>{state.sector=null; state.sub=null; render();}; tabs.appendChild(all);
+  sectors().forEach(([s,n])=>{
+    const b=document.createElement('button'); b.innerHTML=`${s.replace(/^\d+\./,'')}<b>${n}</b>`;
+    b.setAttribute('aria-pressed', state.sector===s); b.onclick=()=>{state.sector=s; state.sub=null; render();}; tabs.appendChild(b);
+  });
+
+  const sub = $('sub'); sub.innerHTML='';
+  if(state.sector){
+    const subs=[...new Set(U.filter(r=>r.s===state.sector).map(r=>r.ss))];
+    const l=document.createElement('span'); l.className='lab'; l.textContent='サブセクター'; sub.appendChild(l);
+    const a=document.createElement('button'); a.textContent='すべて'; a.setAttribute('aria-pressed', state.sub==null); a.onclick=()=>{state.sub=null;render();}; sub.appendChild(a);
+    subs.forEach(s=>{const b=document.createElement('button'); b.textContent=s; b.setAttribute('aria-pressed', state.sub===s); b.onclick=()=>{state.sub=state.sub===s?null:s;render();}; sub.appendChild(b);});
+  }
+  const ct = $('ctry'); ct.innerHTML='';
+  const l=document.createElement('span'); l.className='lab'; l.textContent='国'; ct.appendChild(l);
+  const a=document.createElement('button'); a.textContent='すべて'; a.setAttribute('aria-pressed', state.ctry==null); a.onclick=()=>{state.ctry=null;render();}; ct.appendChild(a);
+  const cm=new Map(); U.forEach(r=>{ if(!cm.has(r.c)) cm.set(r.c,r.cj); });
+  [...cm.entries()].forEach(([c,cj])=>{const b=document.createElement('button'); b.textContent=cj; b.setAttribute('aria-pressed', state.ctry===c); b.onclick=()=>{state.ctry=state.ctry===c?null:c;render();}; ct.appendChild(b);});
+
+  $('toggleAll').textContent = state.allClosed ? '全て開く' : '全て閉じる';
+}
+
+function renderHeader(){
+  const h=$('hdr'); h.innerHTML='';
+  const cols=[['t','Ticker','l stick'],['n','銘柄','l hide-m'],['c','国','l hide-m'],['cap','時価総額<br>B$','hide-m'],['d','概要','l hide-m']]
+    .concat(PERIODS.map(p=>[p,(state.mode==='abs'?'':'REL ')+p,'num']))
+    .concat([['pe','P/E',''],['pb','P/B','hide-m']]);
+  cols.forEach(([k,lab,cls])=>{
+    const th=document.createElement('th'); th.className=cls; th.innerHTML=lab;
+    if(!['n','c','d'].includes(k)){
+      if(state.sort.key===k) th.innerHTML+=`<span class="arr">${state.sort.dir<0?'▼':'▲'}</span>`;
+      th.onclick=()=>{ if(state.sort.key===k) state.sort.dir*=-1; else state.sort={key:k,dir:(k==='t'?1:-1)}; renderTable(); renderHeader(); };
+    } else th.style.cursor='default';
+    h.appendChild(th);
+  });
+}
+
+function avgRow(rows, period){
+  const vs=rows.map(r=>ret(r,period)).filter(v=>v!=null);
+  if(!vs.length) return null;
+  return +(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1);
+}
+function inlineAvg(rows){
+  return '<span class="ia">' + PERIODS.map(p=>{const v=avgRow(rows,p); const c=v==null?'':(v>0?'up':(v<0?'dn':'')); return `<span class="${c}"><em>${p}</em>${fmtPct(v)}</span>`;}).join('') + '</span>';
+}
+function cellsFor(rows){
+  return PERIODS.map(p=>{const v=avgRow(rows,p); return `<td class="v${v==null?' na':''}" style="${bg(v,p)}">${fmtPct(v)}</td>`;}).join('')
+    + '<td class="avg">平均</td><td class="avg hide-m"></td>';
+}
+
+function renderTable(){
+  const body=$('body'); const rows=visibleRows();
+  $('empty').hidden = rows.length>0;
+  // sector → group order preserved from the Excel
+  const bySec=new Map();
+  rows.forEach(r=>{ if(!bySec.has(r.s)) bySec.set(r.s,new Map()); const g=bySec.get(r.s); const k=r.ss+' ─ '+r.g; if(!g.has(k)) g.set(k,[]); g.get(k).push(r); });
+  const html=[];
+  const showSec = bySec.size>1;
+  bySec.forEach((groups,sec)=>{
+    if(showSec){
+      const all=[...groups.values()].flat();
+      html.push(mq.matches
+        ? `<tr class="sec"><td class="l m" colspan="8">${sec}<span class="cnt">(${all.length})</span>${inlineAvg(all)}</td></tr>`
+        : `<tr class="sec"><td class="l" colspan="5">${sec}<span class="cnt">(${all.length})</span></td>${cellsFor(all)}</tr>`);
+    }
+    groups.forEach((list,key)=>{
+      const gid=sec+'|'+key; const closed=state.closed.has(gid);
+      const [ss,g]=key.split(' ─ ');
+      sortRows(list);
+      html.push(mq.matches
+        ? `<tr class="grp${closed?' closed':''}" data-g="${gid}"><td class="l m" colspan="8"><span class="tri">▼</span>${g}<span class="cnt">(${list.length})</span>${inlineAvg(list)}</td></tr>`
+        : `<tr class="grp${closed?' closed':''}" data-g="${gid}"><td class="l" colspan="5"><span class="tri">▼</span><span class="sub">${ss} ─ </span>${g}<span class="cnt">(${list.length})</span></td>${cellsFor(list)}</tr>`);
+      if(closed) return;
+      list.forEach(r=>{
+        const p=P&&P.prices[r.id];
+        const cells=PERIODS.map(per=>{const v=ret(r,per); const cls=v==null?' na':(Math.abs(v)<0.05?' z':''); return `<td class="v${cls}" style="${bg(v,per)}">${fmtPct(v)}</td>`;}).join('');
+        html.push(`<tr class="row" data-id="${r.id}" tabindex="0">
+          <td class="l tk stick"><div class="tkw">${r.t}<small>${esc(r.n)}</small></div></td>
+          <td class="l nm hide-m" title="${esc(r.n)}">${esc(r.n)}</td>
+          <td class="l ct hide-m"><span style="background:${CC[r.c]||'#ccc'}">${r.c}</span></td>
+          <td class="cap hide-m">${fmtCap(r)}</td>
+          <td class="l ds hide-m" title="${esc(r.d)}">${esc(r.d)}</td>
+          ${cells}
+          <td class="pe">${p&&p.pe!=null?p.pe.toFixed(1):'—'}</td>
+          <td class="pb hide-m">${p&&p.pb!=null?p.pb.toFixed(1):'—'}</td>
+        </tr>`);
+      });
+    });
+  });
+  body.innerHTML=html.join('');
+}
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function renderNote(){
+  const n=$('note');
+  if(!P){
+    n.className='note';
+    n.innerHTML=`価格データがまだありません。<code>python update_prices.py 業種分類マップ.xlsx</code> を実行して <code>prices.js</code> を生成すると表示されます。<span class="sp"></span><button class="ib" id="demoBtn">デモ表示で画面を確認</button>`;
+    $('demoBtn').onclick=()=>{P=makeDemo(); render();};
+  } else if(P.demo){
+    n.className='note';
+    n.innerHTML=`表示中のリターンは <b>乱数のデモデータ</b> です。実データは <code>python update_prices.py 業種分類マップ.xlsx</code> で取得してください。`;
+  } else if(P.missing && P.missing.length){
+    n.className='note';
+    n.innerHTML=`${P.missing.length} 銘柄の価格が取得できませんでした(シンボル未対応など)。該当行は「—」で表示しています。`;
+  } else n.className='note hide';
+}
+function makeDemo(){
+  let seed=11; const rnd=()=>{seed=(seed*16807)%2147483647; return seed/2147483647;};
+  const g=()=>{let u=0,v=0;while(!u)u=rnd();while(!v)v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+  const sc={'1D':2,'5D':4,'1M':7,'3M':12,'6M':18,'1Y':30};
+  const prices={}; U.forEach(r=>{const loc={};PERIODS.forEach(p=>loc[p]=+(g()*sc[p]).toFixed(2)); prices[r.id]={loc,usd:loc,pe:+(Math.abs(g()*12)+8).toFixed(1),pb:+(Math.abs(g()*2)+0.6).toFixed(2)};});
+  const bench={}; ['ACWI'].forEach(b=>{bench[b]={};PERIODS.forEach(p=>bench[b][p]=+(g()*sc[p]/3).toFixed(2));});
+  return {generated:'demo',demo:true,periods:PERIODS,global_bench:'ACWI',index_bench:{},country_bench:{},bench,prices,missing:[]};
+}
+
+function render(){ renderChrome(); renderHeader(); renderTable(); renderNote(); layout(); }
+function layout(){ document.documentElement.style.setProperty('--topH', $('top').offsetHeight+'px'); }
+
+// ---------- 詳細シート ----------
+function openSheet(id){
+  const r=U.find(x=>x.id===id); if(!r) return;
+  const p=P&&P.prices[r.id];
+  const cells=PERIODS.map(per=>{const v=ret(r,per); return `<div class="cell${v==null?' na':''}" style="${bg(v,per)}"><b>${fmtPct(v)}</b><span>${state.mode==='abs'?'':'REL '}${per}</span></div>`;}).join('');
+  $('sheetPn').innerHTML=`<button class="x" id="sheetX" aria-label="閉じる">×</button>
+    <h2>${esc(r.t)}<small>${esc(r.cj)} · ${esc(r.ix)}</small></h2>
+    <div class="nm">${esc(r.n)}</div>
+    <p class="ds">${esc(r.d)}</p>
+    <div class="meta"><span>${esc(r.s.replace(/^\d+\./,''))} › ${esc(r.ss)} › ${esc(r.g)}</span></div>
+    <div class="meta"><span>時価総額 ${fmtCap(r)} B$</span><span>P/E ${p&&p.pe!=null?p.pe.toFixed(1):'—'}</span><span>P/B ${p&&p.pb!=null?p.pb.toFixed(2):'—'}</span>${p&&p.px!=null?`<span>株価 ${p.px} (${p.asof||''})</span>`:''}</div>
+    <div class="grid">${cells}</div>`;
+  $('sheet').classList.add('on'); $('sheet').setAttribute('aria-hidden','false');
+  $('sheetX').onclick=closeSheet;
+}
+function closeSheet(){ $('sheet').classList.remove('on'); $('sheet').setAttribute('aria-hidden','true'); }
+$('sheetBd').onclick=closeSheet;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
+
+// ---------- イベント ----------
+$('body').addEventListener('click',e=>{
+  const g=e.target.closest('tr.grp'); if(g){ const id=g.dataset.g; state.closed.has(id)?state.closed.delete(id):state.closed.add(id); renderTable(); return; }
+  const r=e.target.closest('tr.row'); if(r) openSheet(r.dataset.id);
+});
+$('body').addEventListener('keydown',e=>{ if(e.key==='Enter'){const r=e.target.closest('tr.row'); if(r) openSheet(r.dataset.id);} });
+$('mode').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){state.mode=b.dataset.m; render();} });
+let qt; $('q').addEventListener('input',e=>{ clearTimeout(qt); qt=setTimeout(()=>{state.q=e.target.value; render();},120); });
+$('toggleAll').onclick=()=>{
+  state.allClosed=!state.allClosed; state.closed.clear();
+  if(state.allClosed) visibleRows().forEach(r=>state.closed.add(r.s+'|'+r.ss+' ─ '+r.g));
+  render();
+};
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ let t=rd.result.trim(); const i=t.indexOf('{'); t=t.slice(i).replace(/;\s*$/,''); P=JSON.parse(t); render(); }catch(err){ alert('読み込めませんでした: '+err.message); } };
+  rd.readAsText(f);
+});
+window.addEventListener('resize',layout);
+mq.addEventListener('change',()=>render());
+
+$('reload').onclick=()=>{ $('reload').textContent='…'; loadPrices(d=>{ if(d) P=d; $('reload').textContent='更新'; render(); }); };
+// スマホでタブ復帰時に自動で最新化(10分以上経過していれば)
+let lastLoad=Date.now();
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && Date.now()-lastLoad>10*60*1000){ loadPrices(d=>{ if(d){P=d; lastLoad=Date.now(); render();} }); } });
+
+// 初期表示: 先頭セクター
+state.sector = sectors().length ? sectors()[0][0] : null;
+if(!U.length){ $('note').className='note'; $('note').textContent='universe.js が見つかりません。update_prices.py で生成し、index.html と同じフォルダに置いてください。'; }
+render();
+loadPrices(d=>{ P=d; lastLoad=Date.now(); render(); });
+})();
+</script>
+</body>
+</html>
