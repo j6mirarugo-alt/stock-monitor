@@ -1,0 +1,69 @@
+# 株価データを定期取得して GitHub Pages に公開するワークフロー
+name: update-prices
+
+on:
+  schedule:
+    - cron: "*/30 * * * 1-5"    # 30分おき(UTC)・月〜金: 株価のみ更新(数分)
+    - cron: "30 21 * * 6"      # 土曜 21:30 UTC(日曜 6:30 JST): P/E・P/B・時価総額も再取得(約1時間)
+  workflow_dispatch:           # Actions 画面から手動実行
+    inputs:
+      full:
+        description: "P/E・P/B・時価総額も取得する(時間がかかる)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install yfinance pandas openpyxl
+
+      - name: Fetch current published data (to carry over P/E, P/B, market cap)
+        run: |
+          curl -fsSL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/prices.js" -o prices_prev.js || echo "no previous data"
+
+      - name: Decide mode
+        id: mode
+        run: |
+          if [ "${{ github.event.schedule }}" = "30 21 * * 6" ] || [ "${{ github.event.inputs.full }}" = "true" ]; then
+            echo "args=" >> $GITHUB_OUTPUT
+          else
+            echo "args=--no-fundamentals --prev prices_prev.js" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build data
+        run: |
+          mkdir -p site
+          python update_prices.py "業種分類マップ_v2.xlsx" --out site ${{ steps.mode.outputs.args }}
+          cp index.html site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
